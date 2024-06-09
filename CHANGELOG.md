@@ -1,3 +1,44 @@
+## [8.2.6]
+
+- Merged PR #507 - Migrating dart:html to package:web thanks to @a-h-mzd for PR
+
+## [8.2.5]
+
+- Merged multiple PRs #492 #490 #489 #480 - Thanks to all contributors
+
+## [8.2.4]
+
+- Reverted the minSDK 22 which broke many apps - Sorry everyone
+
+## [8.2.3]
+
+- Merged PR #466 (fixes issue in android)
+
+## [8.2.2]
+
+- Adjustments for flutter >=3.10
+
+## [8.2.1]
+
+- Removed `context.mounted`
+
+## [8.2.0]
+
+- Updated the flow for Toast with Context
+
+## [8.1.4]
+
+- Merged #419 (added environment restriction in pubspec)
+
+## [8.1.3]
+
+- Merged #415 (improvements to provide safer usage) @AlexSeednov
+- Updated Readme.md
+
+## [8.1.2]
+
+- Merged #405 #408
+
 ## [8.1.1] [8.1.0]
 
 - Many issues fixed

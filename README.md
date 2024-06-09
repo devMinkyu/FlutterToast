@@ -34,7 +34,7 @@ This one has limited features and no control over UI
 
 ```yaml
 # add this line to your dependencies
-fluttertoast: ^8.1.1
+fluttertoast: ^8.2.6
 ```
 
 ```dart
@@ -113,7 +113,17 @@ Create a file named `toast_custom.xml` in your project `app/res/layout` folder a
 ```
 
 ## Toast with BuildContext (All Platforms)
-  
+
+Update your `MaterialApp` with `builder` like below for the use of Context globally check doc section Use NavigatorKey for Context(to access context globally)
+
+```dart
+MaterialApp(
+    builder: FToastBuilder(),
+    home: MyApp(),
+    navigatorKey: navigatorKey,
+),
+```
+
 ```dart 
 FToast fToast;
 
@@ -121,6 +131,7 @@ FToast fToast;
 void initState() {
     super.initState();
     fToast = FToast();
+    // if you want to use context from globally instead of content we need to pass navigatorKey.currentContext!
     fToast.init(context);
 }
 
@@ -168,12 +179,28 @@ _showToast() {
 Now Call `_showToast()`
 
 For more details check `example` project
-  
-| property        | description                                                        | default    |  
-| --------------- | ------------------------------------------------------------------ |------------|  
-| child             | Widget (Not Null)(required)                                        |required    |  
+
+| property        | description                                                        | default    |
+| --------------- | ------------------------------------------------------------------ |------------|
+| child             | Widget (Not Null)(required)                                        |required    |
 | toastDuration     | Duration (optional)                                                 |  |
 | gravity         | ToastGravity.*    |  |
+
+### Use NavigatorKey for Context(to access context globally)
+
+To use NavigatorKey for Context first define the `GlobalKey<NavigatorState>` at top level in your `main.dart` file
+
+```dart
+GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+```
+
+At the time of initializing the `FToast` we need to use context from globally defined `GlobalKey<NavigatorState>`
+
+```dart
+FToast fToast = FToast();
+fToast.init(yourNavKey.currentContext!);
+```
+
 ### To cancel all the toasts call  
   
 ```dart  
@@ -200,9 +227,6 @@ fToast.removeQueuedCustomToasts();
 
 ...
 
-## Help needed for iOS 
-
-Looking for iOS Dev who can check out and fix the issues releated to iOS (I dont have a Mac and iOS)
 
 ## Buy Me a Coffee
 

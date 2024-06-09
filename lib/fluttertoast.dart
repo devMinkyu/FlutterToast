@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,7 +24,8 @@ enum ToastGravity {
   BOTTOM_RIGHT,
   CENTER_LEFT,
   CENTER_RIGHT,
-  SNACKBAR
+  SNACKBAR,
+  NONE
 }
 
 /// Plugin to show a toast message on screen
@@ -58,8 +58,8 @@ class Fluttertoast {
     Color? backgroundColor,
     Color? textColor,
     bool webShowClose = false,
-    webBgColor: "linear-gradient(to right, #00b09b, #96c93d)",
-    webPosition: "right",
+    webBgColor = "linear-gradient(to right, #00b09b, #96c93d)",
+    webPosition = "right",
   }) async {
     String toast = "short";
     if (toastLength == Toast.LENGTH_LONG) {
@@ -138,15 +138,46 @@ class FToast {
   /// the overlay to the screen
   ///
   _showOverlay() {
-    if (_overlayQueue.length == 0) {
+    if (_overlayQueue.isEmpty) {
       _entry = null;
       return;
     }
+    if (context == null) {
+      /// Need to clear queue
+      removeQueuedCustomToasts();
+      throw ("Error: Context is null, Please call init(context) before showing toast.");
+    }
+
+    /// To prevent exception "Looking up a deactivated widget's ancestor is unsafe."
+    /// which can be thrown if context was unmounted (e.g. screen with given context was popped)
+    /// TODO: revert this change when envoirment will be Flutter >= 3.7.0
+    // if (context?.mounted != true) {
+    //   if (kDebugMode) {
+    //     print(
+    //         'FToast: Context was unmuted, can not show ${_overlayQueue.length} toast.');
+    //   }
+
+    //   /// Need to clear queue
+    //   removeQueuedCustomToasts();
+    //   return; // Or maybe thrown error too
+    // }
+    OverlayState? _overlay;
+    try {
+      _overlay = Overlay.of(context!);
+    } catch (err) {
+      removeQueuedCustomToasts();
+      throw ("""Error: Overlay is null. 
+      Please don't use top of the widget tree context (such as Navigator or MaterialApp) or 
+      create overlay manually in MaterialApp builder.
+      More information 
+        - https://github.com/ponnamkarthik/FlutterToast/issues/393
+        - https://github.com/ponnamkarthik/FlutterToast/issues/234""");
+    }
+
+    /// Create entry only after all checks
     _ToastEntry _toastEntry = _overlayQueue.removeAt(0);
     _entry = _toastEntry.entry;
-    if (context == null)
-      throw ("Error: Context is null, Please call init(context) before showing toast.");
-    Overlay.of(context!)?.insert(_entry!);
+    _overlay.insert(_entry!);
 
     _timer = Timer(_toastEntry.duration, () {
       _fadeTimer = Timer(_toastEntry.fadeDuration, () {
@@ -162,7 +193,7 @@ class FToast {
     _fadeTimer?.cancel();
     _timer = null;
     _fadeTimer = null;
-    if (_entry != null) _entry!.remove();
+    _entry?.remove();
     _entry = null;
     _showOverlay();
   }
@@ -178,7 +209,7 @@ class FToast {
     _timer = null;
     _fadeTimer = null;
     _overlayQueue.clear();
-    if (_entry != null) _entry!.remove();
+    _entry?.remove();
     _entry = null;
   }
 
@@ -194,10 +225,21 @@ class FToast {
     Duration toastDuration = const Duration(seconds: 2),
     ToastGravity? gravity,
     Duration fadeDuration = const Duration(milliseconds: 350),
+    bool ignorePointer = false,
+    bool isDismissable = false,
   }) {
     if (context == null)
       throw ("Error: Context is null, Please call init(context) before showing toast.");
-    Widget newChild = _ToastStateFul(child, toastDuration, fadeDuration);
+    Widget newChild = _ToastStateFul(
+        child,
+        toastDuration,
+        fadeDuration,
+        ignorePointer,
+        !isDismissable
+            ? null
+            : () {
+                removeCustomToast();
+              });
 
     /// Check for keyboard open
     /// If open will ignore the gravity bottom and change it to center
@@ -245,10 +287,51 @@ class FToast {
             left: 0,
             right: 0,
             child: child);
+      case ToastGravity.NONE:
+        return Positioned.fill(child: child);
       case ToastGravity.BOTTOM:
       default:
         return Positioned(bottom: 50.0, left: 24.0, right: 24.0, child: child);
     }
+  }
+}
+
+/// Simple builder method to create a [TransitionBuilder]
+/// and for the use in MaterialApp builder method
+// ignore: non_constant_identifier_names
+TransitionBuilder FToastBuilder() {
+  return (context, child) {
+    return _FToastHolder(
+      child: child!,
+    );
+  };
+}
+
+/// Simple StatelessWidget which holds the child
+/// and creates an [Overlay] to display the toast
+/// which returns the Directionality widget with [TextDirection.ltr]
+/// and [Overlay] widget
+class _FToastHolder extends StatelessWidget {
+  const _FToastHolder({Key? key, required this.child}) : super(key: key);
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final Overlay overlay = Overlay(
+      initialEntries: <OverlayEntry>[
+        OverlayEntry(
+          builder: (BuildContext ctx) {
+            return child;
+          },
+        ),
+      ],
+    );
+
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: overlay,
+    );
   }
 }
 
@@ -270,12 +353,16 @@ class _ToastEntry {
 /// internal [StatefulWidget] which handles the show and hide
 /// animations for [FToast]
 class _ToastStateFul extends StatefulWidget {
-  _ToastStateFul(this.child, this.duration, this.fadeDuration, {Key? key})
+  _ToastStateFul(this.child, this.duration, this.fadeDuration,
+      this.ignorePointer, this.onDismiss,
+      {Key? key})
       : super(key: key);
 
   final Widget child;
   final Duration duration;
   final Duration fadeDuration;
+  final bool ignorePointer;
+  final VoidCallback? onDismiss;
 
   @override
   ToastStateFulState createState() => ToastStateFulState();
@@ -333,12 +420,19 @@ class ToastStateFulState extends State<_ToastStateFul>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnimation as Animation<double>,
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: widget.child,
+    return GestureDetector(
+      onTap: widget.onDismiss == null ? null : () => widget.onDismiss!(),
+      behavior: HitTestBehavior.translucent,
+      child: IgnorePointer(
+        ignoring: widget.ignorePointer,
+        child: FadeTransition(
+          opacity: _fadeAnimation as Animation<double>,
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: widget.child,
+            ),
+          ),
         ),
       ),
     );
